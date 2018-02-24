@@ -11,6 +11,14 @@
 
     <groupId>org.wowtools.fasttiff</groupId>
     <artifactId>core</artifactId>
-
+    <dependencies>
+        <dependency>
+            <groupId>org.gdal</groupId>
+            <artifactId>gdal</artifactId>
+            <version>2.2.3</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/gdal.jar</systemPath>
+        </dependency>
+    </dependencies>
 
 </project>

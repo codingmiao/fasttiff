@@ -82,15 +82,36 @@ public class TileableTiff {
         int endX = (int) ((xmax - x0) / dx + 0.5);
         int endY = (int) ((ymin - y0) / dy + 0.5);
         int tiffWidth = endX - startX;
-        int tiffHeight = endY - startY;
+        int tiffHeight = startY - endY;
         /** 3、得到rgbArr并转换为img**/
         BufferedImage img = new BufferedImage(tileWidth, tileHeight, Transparency.TRANSLUCENT);
         if (startX > iXSize || endY > iYSize || endX < 0 || startY < 0) {
             return img;//bbox完全落在图片外，直接返回一张透明图片
         }
-        int[] rgbArr = getTileRgb(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight);
+        int drawStartX = 0, drawStartY = 0;
+//        if (startX < 0) {
+//            startX = 0;
+//            double w0 = tiffWidth;
+//            tiffWidth = endX;
+//            tileWidth = (int) (tiffWidth / w0 * tileWidth);
+//        } else if (endX > iXSize) {
+//            endX = iXSize - 1;
+//            double w0 = tiffWidth;
+//            tiffWidth = endX - startX;
+//            tileWidth = (int) (tiffWidth / w0 * tileWidth);
+//            drawStartX = (int) (w0 - tileWidth);
+//        }
+//        if (startY < 0) {
+//            startY = 0;
+//            double h0 = tiffHeight;
+//            tiffHeight = endY;
+//            tileHeight = (int) (tiffHeight / h0 * tileHeight);
+//        } else if (endY > iYSize) {
+//
+//        }
         //TODO bbox不完全落在tiff范围内的处理
-        img.setRGB(0, 0, tileWidth, tileHeight, rgbArr, 0, tileWidth);
+        int[] rgbArr = getTileRgb(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight);
+        img.setRGB(drawStartX, 0, tileWidth, tileHeight, rgbArr, 0, tileWidth);
         return img;
     }
 
@@ -115,7 +136,7 @@ public class TileableTiff {
      * @param tileHeight 生成的BufferedImage的高度
      * @return
      */
-    private int[] getTileRgb(int startX, int startY, int tiffWidth, int tiffHeight, int tileWidth, int tileHeight) {
+    private synchronized int[] getTileRgb(int startX, int startY, int tiffWidth, int tiffHeight, int tileWidth, int tileHeight) {
         int size = tileWidth * tileHeight;
         int[] rgbArr = new int[size];
         //取出rgba分量，再合并成rgb int放入数组
@@ -123,13 +144,27 @@ public class TileableTiff {
         int[] rasterR = new int[size];
         int[] rasterG = new int[size];
         int[] rasterB = new int[size];
-        bandA.ReadRaster(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight, gdalconstConstants.GDT_Int32, rasterA);
+        int res;
+        try {
+            res = bandA.ReadRaster(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight, gdalconstConstants.GDT_Int32, rasterA);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+//        if(0!=res){
+//            throw new RuntimeException("jni error");
+//        }
         bandR.ReadRaster(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight, gdalconstConstants.GDT_Int32, rasterR);
         bandG.ReadRaster(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight, gdalconstConstants.GDT_Int32, rasterG);
         bandB.ReadRaster(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight, gdalconstConstants.GDT_Int32, rasterB);
 
         for (int i = 0; i < size; i++) {
-            rgbArr[i] = (rasterA[i] << 24) + (rasterR[i] << 16) + (rasterG[i] << 8) + rasterB[i];
+            int v = (rasterR[i] << 16) + (rasterG[i] << 8) + rasterB[i];
+            //去除黑边
+            if (0 == v) {
+                rgbArr[i] = 0xffffff;
+            } else {
+                rgbArr[i] = (rasterA[i] << 24) + v;
+            }
         }
 
         return rgbArr;
