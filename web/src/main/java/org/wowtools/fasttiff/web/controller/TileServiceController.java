@@ -13,6 +13,8 @@ import javax.servlet.http.HttpServletResponse;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 切片服务Controller
@@ -23,9 +25,13 @@ import java.io.OutputStream;
 @RestController()
 @RequestMapping("/tiled")
 public class TileServiceController {
-    private final TileableTiff tileableTiff = new TileableTiff("e:/_tmp/500kV大宝II回线179-192-3793-4109.tif");
+    private final TileableTiff[] tileableTiffs = {
+            new TileableTiff("e:/_tmp/500kV大宝II回线179-192-3793-4109.tif"),
+            new TileableTiff("e:/_tmp/500kV大宝II回线179-192-3793-4109.tif"),
+            new TileableTiff("e:/_tmp/500kV大宝II回线179-192-3793-4109.tif")
+    };
 
-
+    private final Random random = new Random();
     @RequestMapping({"/{layer}"})
     public String getilemetainfo(@PathVariable("layer") String layer, @RequestParam("f") String form,
                                  HttpServletResponse response) {
@@ -36,7 +42,7 @@ public class TileServiceController {
 
     @RequestMapping({"/{layer}/tile/{level}/{row}/{col}"})
     public void getile(@PathVariable("layer") String layer, @PathVariable("level") int level, @PathVariable("row") int row, @PathVariable("col") int col, HttpServletResponse response) {
-        BufferedImage img = tileableTiff.getTile(level, row, col, 256, 256);
+        BufferedImage img = tileableTiffs[random.nextInt(tileableTiffs.length)].getTile(level, row, col, 256, 256);
         response.setContentType("image/png");
         OutputStream os = null;
         try {

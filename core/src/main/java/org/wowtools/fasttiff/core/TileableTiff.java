@@ -19,6 +19,27 @@ public class TileableTiff {
         gdal.AllRegister();
     }
 
+    public static void main(String[] args) {
+        TileableTiff tf = new TileableTiff("e:/_tmp/500kV大宝II回线179-192-3793-4109.tif");
+        /** 1、将层级行列号转为与tiff相同坐标系的bbox **/
+        double[] bbox3857 = Lrc2Bbox.toBbox3857(16,14087*2,25595*2);
+        //TODO dataset.GetProjection()获取tiff坐标系，并转为3857,这里直接默认了tiff坐标系为4326
+        double[] lu = tf.mercator2lonLat(bbox3857[0], bbox3857[1]);//左上角
+        double[] rd = tf.mercator2lonLat(bbox3857[2], bbox3857[3]);//右下角
+        double xmin = lu[0], ymin = rd[1], xmax = rd[0], ymax = lu[1];
+
+        /** 2、计算getTileRgb方法所需参数 **/
+        //TODO 没有考虑geoTransform的旋转参数
+        double x0 = tf.geoTransform[0], dx = tf.geoTransform[1], y0 = tf.geoTransform[3], dy = tf.geoTransform[5];
+        int startX = (int) ((xmin - x0) / dx);
+        int startY = (int) ((ymax - y0) / dy);
+        int endX = (int) ((xmax - x0) / dx + 0.5);
+        int endY = (int) ((ymin - y0) / dy + 0.5);
+        int tiffWidth = endX - startX;
+        int tiffHeight = startY - endY;
+        System.out.println();
+    }
+
     private final String tiffPath;
     private final int hashCode;
 
@@ -70,9 +91,9 @@ public class TileableTiff {
         /** 1、将层级行列号转为与tiff相同坐标系的bbox **/
         double[] bbox3857 = Lrc2Bbox.toBbox3857(level, row, column);
         //TODO dataset.GetProjection()获取tiff坐标系，并转为3857,这里直接默认了tiff坐标系为4326
-        double[] lu = mercator2lonLat(bbox3857[0], bbox3857[1]);//左上角
-        double[] rd = mercator2lonLat(bbox3857[2], bbox3857[3]);//右下角
-        double xmin = lu[0], ymin = rd[1], xmax = rd[0], ymax = lu[1];
+        double[] low = mercator2lonLat(bbox3857[0], bbox3857[1]);//左下角
+        double[] up = mercator2lonLat(bbox3857[2], bbox3857[3]);//右上角
+        double xmin = low[0], ymin = low[1], xmax = up[0], ymax = up[1];
 
         /** 2、计算getTileRgb方法所需参数 **/
         //TODO 没有考虑geoTransform的旋转参数
@@ -82,7 +103,7 @@ public class TileableTiff {
         int endX = (int) ((xmax - x0) / dx + 0.5);
         int endY = (int) ((ymin - y0) / dy + 0.5);
         int tiffWidth = endX - startX;
-        int tiffHeight = startY - endY;
+        int tiffHeight = endY -startY;
         /** 3、得到rgbArr并转换为img**/
         BufferedImage img = new BufferedImage(tileWidth, tileHeight, Transparency.TRANSLUCENT);
         if (startX > iXSize || endY > iYSize || endX < 0 || startY < 0) {
@@ -136,7 +157,7 @@ public class TileableTiff {
      * @param tileHeight 生成的BufferedImage的高度
      * @return
      */
-    private synchronized int[] getTileRgb(int startX, int startY, int tiffWidth, int tiffHeight, int tileWidth, int tileHeight) {
+    private int[] getTileRgb(int startX, int startY, int tiffWidth, int tiffHeight, int tileWidth, int tileHeight) {
         int size = tileWidth * tileHeight;
         int[] rgbArr = new int[size];
         //取出rgba分量，再合并成rgb int放入数组
@@ -144,18 +165,13 @@ public class TileableTiff {
         int[] rasterR = new int[size];
         int[] rasterG = new int[size];
         int[] rasterB = new int[size];
-        int res;
-        try {
-            res = bandA.ReadRaster(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight, gdalconstConstants.GDT_Int32, rasterA);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        synchronized (this){
+            //异步操作会引起jni error
+            bandA.ReadRaster(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight, gdalconstConstants.GDT_Int32, rasterA);
+            bandR.ReadRaster(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight, gdalconstConstants.GDT_Int32, rasterR);
+            bandG.ReadRaster(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight, gdalconstConstants.GDT_Int32, rasterG);
+            bandB.ReadRaster(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight, gdalconstConstants.GDT_Int32, rasterB);
         }
-//        if(0!=res){
-//            throw new RuntimeException("jni error");
-//        }
-        bandR.ReadRaster(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight, gdalconstConstants.GDT_Int32, rasterR);
-        bandG.ReadRaster(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight, gdalconstConstants.GDT_Int32, rasterG);
-        bandB.ReadRaster(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight, gdalconstConstants.GDT_Int32, rasterB);
 
         for (int i = 0; i < size; i++) {
             int v = (rasterR[i] << 16) + (rasterG[i] << 8) + rasterB[i];
