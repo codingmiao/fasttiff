@@ -19,27 +19,6 @@ public class TileableTiff {
         gdal.AllRegister();
     }
 
-    public static void main(String[] args) {
-        TileableTiff tf = new TileableTiff("e:/_tmp/500kV大宝II回线179-192-3793-4109.tif");
-        /** 1、将层级行列号转为与tiff相同坐标系的bbox **/
-        double[] bbox3857 = Lrc2Bbox.toBbox3857(16,14087*2,25595*2);
-        //TODO dataset.GetProjection()获取tiff坐标系，并转为3857,这里直接默认了tiff坐标系为4326
-        double[] lu = tf.mercator2lonLat(bbox3857[0], bbox3857[1]);//左上角
-        double[] rd = tf.mercator2lonLat(bbox3857[2], bbox3857[3]);//右下角
-        double xmin = lu[0], ymin = rd[1], xmax = rd[0], ymax = lu[1];
-
-        /** 2、计算getTileRgb方法所需参数 **/
-        //TODO 没有考虑geoTransform的旋转参数
-        double x0 = tf.geoTransform[0], dx = tf.geoTransform[1], y0 = tf.geoTransform[3], dy = tf.geoTransform[5];
-        int startX = (int) ((xmin - x0) / dx);
-        int startY = (int) ((ymax - y0) / dy);
-        int endX = (int) ((xmax - x0) / dx + 0.5);
-        int endY = (int) ((ymin - y0) / dy + 0.5);
-        int tiffWidth = endX - startX;
-        int tiffHeight = startY - endY;
-        System.out.println();
-    }
-
     private final String tiffPath;
     private final int hashCode;
 
@@ -102,37 +81,48 @@ public class TileableTiff {
         int startY = (int) ((ymax - y0) / dy);
         int endX = (int) ((xmax - x0) / dx + 0.5);
         int endY = (int) ((ymin - y0) / dy + 0.5);
+        if (startX > iXSize || startY > iYSize || endX < 0 || endY < 0) {
+            return null;//不在范围内，直接返回null
+        }
         int tiffWidth = endX - startX;
-        int tiffHeight = endY -startY;
+        int tiffHeight = endY - startY;
+        if (tiffWidth > iXSize || tiffHeight > iYSize) {
+            return null;//切片比tiff还大，出于效率考虑就不处理了
+        }
         /** 3、得到rgbArr并转换为img**/
         BufferedImage img = new BufferedImage(tileWidth, tileHeight, Transparency.TRANSLUCENT);
-        if (startX > iXSize || endY > iYSize || endX < 0 || startY < 0) {
-            return img;//bbox完全落在图片外，直接返回一张透明图片
-        }
         int drawStartX = 0, drawStartY = 0;
-//        if (startX < 0) {
-//            startX = 0;
-//            double w0 = tiffWidth;
-//            tiffWidth = endX;
-//            tileWidth = (int) (tiffWidth / w0 * tileWidth);
-//        } else if (endX > iXSize) {
-//            endX = iXSize - 1;
-//            double w0 = tiffWidth;
-//            tiffWidth = endX - startX;
-//            tileWidth = (int) (tiffWidth / w0 * tileWidth);
-//            drawStartX = (int) (w0 - tileWidth);
-//        }
-//        if (startY < 0) {
-//            startY = 0;
-//            double h0 = tiffHeight;
-//            tiffHeight = endY;
-//            tileHeight = (int) (tiffHeight / h0 * tileHeight);
-//        } else if (endY > iYSize) {
-//
-//        }
-        //TODO bbox不完全落在tiff范围内的处理
+        if (startX < 0) {
+            startX = 0;
+            double w0 = tiffWidth;
+            tiffWidth = endX;
+            int tileWidth0 = tileWidth;
+            tileWidth = (int) (tiffWidth / w0 * tileWidth);
+            drawStartX = tileWidth0 - tileWidth;
+        } else if (endX > iXSize) {
+            endX = iXSize - 1;
+            double w0 = tiffWidth;
+            tiffWidth = endX - startX;
+            tileWidth = (int) (tiffWidth / w0 * tileWidth);
+        }
+        if (startY < 0) {
+            startY = 0;
+            double h0 = tiffHeight;
+            tiffHeight = endY;
+            int tileHeight0 = tileHeight;
+            tileHeight = (int) (tiffHeight / h0 * tileHeight);
+            drawStartY = tileHeight0 - tileHeight;
+        } else if (endY > iYSize) {
+            endY = iYSize - 1;
+            double h0 = tiffHeight;
+            tiffHeight = endY - startY;
+            tileHeight = (int) (tiffHeight / h0 * tileHeight);
+        }
+        if (tiffWidth > iYSize) {
+            System.out.println(111);
+        }
         int[] rgbArr = getTileRgb(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight);
-        img.setRGB(drawStartX, 0, tileWidth, tileHeight, rgbArr, 0, tileWidth);
+        img.setRGB(drawStartX, drawStartY, tileWidth, tileHeight, rgbArr, 0, tileWidth);
         return img;
     }
 
@@ -165,7 +155,7 @@ public class TileableTiff {
         int[] rasterR = new int[size];
         int[] rasterG = new int[size];
         int[] rasterB = new int[size];
-        synchronized (this){
+        synchronized (this) {
             //异步操作会引起jni error
             bandA.ReadRaster(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight, gdalconstConstants.GDT_Int32, rasterA);
             bandR.ReadRaster(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight, gdalconstConstants.GDT_Int32, rasterR);
