@@ -78,11 +78,16 @@ public class TileService implements CommandLineRunner {
                 fileName = fileName.substring(fileName.lastIndexOf(".") + 1);
                 if ("tif".equals(fileName) || "tiff".equals(fileName)) {
                     String path = f.getPath();
-                    TileableTiff[] tileableTiffs = new TileableTiff[coreSize];
-                    for (int i = 0; i < coreSize; i++) {
-                        tileableTiffs[i] = new TileableTiff(path);
+                    try {
+                        TileableTiff[] tileableTiffs = new TileableTiff[coreSize];
+                        for (int i = 0; i < coreSize; i++) {
+                            tileableTiffs[i] = new TileableTiff(path);
+                        }
+                        list.add(tileableTiffs);
+                        System.out.println("加载tiff文件完成:"+path);
+                    }catch (Exception e){
+                        e.printStackTrace();
                     }
-                    list.add(tileableTiffs);
                 }
             }
         }

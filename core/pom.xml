@@ -17,7 +17,8 @@
             <artifactId>gdal</artifactId>
             <version>2.2.3</version>
             <scope>system</scope>
-            <systemPath>${project.basedir}/lib/gdal.jar</systemPath>
+            <systemPath>${project.basedir}/lib/gdal-centos7x64.jar</systemPath>
+            <!--<systemPath>${project.basedir}/lib/gdal-win64.jar</systemPath>-->
         </dependency>
     </dependencies>
 

@@ -40,7 +40,7 @@ public class TileableTiff {
     public TileableTiff(String tiffPath) {
         dataset = gdal.Open(tiffPath, gdalconstConstants.GA_ReadOnly);
         if (dataset == null) {
-            throw new RuntimeException("读取tiff文件异常:" + gdal.GetLastErrorMsg());
+            throw new RuntimeException("读取tiff文件异常:\n"+tiffPath+"\n" + gdal.GetLastErrorMsg());
         }
         this.tiffPath = tiffPath;
         hashCode = tiffPath.hashCode();
