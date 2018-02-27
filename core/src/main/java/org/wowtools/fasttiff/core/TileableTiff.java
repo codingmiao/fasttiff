@@ -5,6 +5,9 @@ import org.gdal.gdal.Dataset;
 import org.gdal.gdal.gdal;
 import org.gdal.gdalconst.gdalconstConstants;
 
+import java.awt.*;
+import java.awt.image.BufferedImage;
+
 /**
  * 可切片的tiff
  *
@@ -63,7 +66,7 @@ public class TileableTiff {
      * @param tileHeight 生成的BufferedImage的高度
      * @return
      */
-    public RgbTile getTile(int level, int row, int column, int tileWidth, int tileHeight) {
+    public BufferedImage getTile(int level, int row, int column, int tileWidth, int tileHeight) {
         /** 1、将层级行列号转为与tiff相同坐标系的bbox **/
         double[] bbox3857 = Lrc2Bbox.toBbox3857(level, row, column);
         //TODO dataset.GetProjection()获取tiff坐标系，并转为3857,这里直接默认了tiff坐标系为4326
@@ -87,9 +90,7 @@ public class TileableTiff {
             return null;//切片比tiff还大，出于效率考虑就不处理了
         }
         /** 3、得到rgbArr并转换为img**/
-        RgbTile tile = new RgbTile();
-        tile.setTileWidth(tileWidth);
-        tile.setTileHeight(tileHeight);
+        BufferedImage img = new BufferedImage(tileWidth, tileHeight, Transparency.TRANSLUCENT);
         int drawStartX = 0, drawStartY = 0;
         if (startX < 0) {
             startX = 0;
@@ -117,15 +118,12 @@ public class TileableTiff {
             tiffHeight = endY - startY;
             tileHeight = (int) (tiffHeight / h0 * tileHeight);
         }
+        if (tiffWidth > iYSize) {
+            System.out.println(111);
+        }
         int[] rgbArr = getTileRgb(startX, startY, tiffWidth, tiffHeight, tileWidth, tileHeight);
-        tile.setStartX(drawStartX);
-        tile.setStartY(drawStartY);
-        tile.setW(tileWidth);
-        tile.setH(tileHeight);
-        tile.setRgbArray(rgbArr);
-//        tile.setOffset(0);
-        tile.setScansize(tileWidth);
-        return tile;
+        img.setRGB(drawStartX, drawStartY, tileWidth, tileHeight, rgbArr, 0, tileWidth);
+        return img;
     }
 
     private double[] mercator2lonLat(double mercatorX, double mercatorY) {

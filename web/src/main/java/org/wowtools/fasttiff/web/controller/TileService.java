@@ -4,7 +4,6 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 import org.wowtools.common.utils.AsyncTaskUtil;
-import org.wowtools.fasttiff.core.RgbTile;
 import org.wowtools.fasttiff.core.TileableTiff;
 import org.wowtools.fasttiff.web.service.TileConfig;
 
@@ -42,8 +41,8 @@ public class TileService implements CommandLineRunner {
      */
     public BufferedImage getTile(int level, int row, int col) {
         int idx = Math.abs(_idx.addAndGet(1));
-        BufferedImage res = new BufferedImage(tileWidth, tileWidth, Transparency.TRANSLUCENT);
-        List<Callable<RgbTile>> tasks = new ArrayList<>(allTiff.length);
+
+        List<Callable<BufferedImage>> tasks = new ArrayList<>(allTiff.length);
         for (TileableTiff[] tileableTiffs : allTiff) {
             TileableTiff tileableTiff = tileableTiffs[idx % tileableTiffs.length];
             tasks.add(() -> {
@@ -54,12 +53,15 @@ public class TileService implements CommandLineRunner {
                 }
             });
         }
-        ArrayList<RgbTile> subTiles = AsyncTaskUtil.executeAsyncTasksAndReturn(tasks);
-        for (RgbTile subTile : subTiles) {
+        ArrayList<BufferedImage> subTiles = AsyncTaskUtil.executeAsyncTasksAndReturn(tasks);
+        BufferedImage res = new BufferedImage(tileWidth, tileWidth, Transparency.TRANSLUCENT);
+        Graphics g = res.getGraphics();
+        for (BufferedImage subTile : subTiles) {
             if (null != subTile) {
-                subTile.fillImg(res);
+                g.drawImage(subTile, 0, 0, null);
             }
         }
+        g.dispose();
         return res;
     }
 
