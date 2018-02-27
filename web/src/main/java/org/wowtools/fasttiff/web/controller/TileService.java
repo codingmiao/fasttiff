@@ -4,6 +4,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 import org.wowtools.common.utils.AsyncTaskUtil;
+import org.wowtools.fasttiff.core.RgbTile;
 import org.wowtools.fasttiff.core.TileableTiff;
 import org.wowtools.fasttiff.web.service.TileConfig;
 
@@ -14,6 +15,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Stack;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -23,7 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @date 2018/2/26
  */
 @Service
-@Order(value=2)
+@Order(value = 2)
 public class TileService implements CommandLineRunner {
     private final AtomicInteger _idx = new AtomicInteger(0);//用于均衡地选取TileableTiff
     private final int tileWidth = 256;
@@ -41,21 +43,23 @@ public class TileService implements CommandLineRunner {
     public BufferedImage getTile(int level, int row, int col) {
         int idx = Math.abs(_idx.addAndGet(1));
         BufferedImage res = new BufferedImage(tileWidth, tileWidth, Transparency.TRANSLUCENT);
-        Graphics g = res.getGraphics();
-        List<Runnable> tasks = new ArrayList<>(allTiff.length);
+        List<Callable<RgbTile>> tasks = new ArrayList<>(allTiff.length);
         for (TileableTiff[] tileableTiffs : allTiff) {
             TileableTiff tileableTiff = tileableTiffs[idx % tileableTiffs.length];
             tasks.add(() -> {
-                BufferedImage subImg = tileableTiff.getTile(level, row, col, tileWidth, tileWidth);
-                if (null != g) {
-                    synchronized (g) {
-                        g.drawImage(subImg, 0, 0, null);
-                    }
+                try {
+                    return tileableTiff.getTile(level, row, col, tileWidth, tileWidth);
+                } catch (Exception e) {
+                    return null;
                 }
             });
         }
-        AsyncTaskUtil.executeAsyncTasks(tasks, true);
-        g.dispose();
+        ArrayList<RgbTile> subTiles = AsyncTaskUtil.executeAsyncTasksAndReturn(tasks);
+        for (RgbTile subTile : subTiles) {
+            if (null != subTile) {
+                subTile.fillImg(res);
+            }
+        }
         return res;
     }
 
@@ -84,8 +88,8 @@ public class TileService implements CommandLineRunner {
                             tileableTiffs[i] = new TileableTiff(path);
                         }
                         list.add(tileableTiffs);
-                        System.out.println("加载tiff文件完成:"+path);
-                    }catch (Exception e){
+                        System.out.println("加载tiff文件完成:" + path);
+                    } catch (Exception e) {
                         e.printStackTrace();
                     }
                 }

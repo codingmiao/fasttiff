@@ -46,8 +46,10 @@ public class TileServiceController {
         OutputStream os = null;
         try {
             os = response.getOutputStream();
-            byte[] bt = new PngEncoder(img,true).pngEncode();
-            os.write(bt);
+            ImageIO.write(img,"png",os);
+            //这种写法性能较高，但图片压缩率低，给客户端压力打
+//            byte[] bt = new PngEncoder(img,true).pngEncode();
+//            os.write(bt);
             os.flush();
         } catch (Exception e) {
             throw new RuntimeException(e);
